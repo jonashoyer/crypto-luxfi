@@ -1,106 +1,116 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity >=0.6.0 <0.8.0;
+pragma solidity >=0.6.0 <0.9.0;
 
-contract Luxfi {
+import "@openzeppelin/contracts/presets/ERC20PresetMinterPauser.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20Capped.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
+
+contract Luxfi is ERC20PresetMinterPauser, ERC20Capped, Ownable {
+
+  using SafeMath for uint256;
   
-  string public name = "Luxfi";
-  string public symbol = "LXI";
-  uint256 public totalSupply = 1000000000000000000000000;
-  uint8 public decimals = 18;
+  address[] internal stakeholders;
+  mapping(address => uint256) internal stakes;
+  mapping(address => uint256) internal rewards;
 
-  address public owner;
-
-  address[] public stakers;
-  mapping(address => uint) public staking;
-  mapping(address => bool) public isStaking;
-  mapping(address => bool) public hasStaked;
+  constructor(
+    string memory name,
+    string memory symbol,
+    uint8 decimals,
+    uint256 cap,
+    uint256 initialSupply
+  )
+    ERC20PresetMinterPauser(name, symbol)
+    ERC20Capped(cap)
+  {
+    _setupDecimals(decimals);
+    super._mint(owner(), initialSupply);
+  }
   
-
-  event Transfer(
-    address indexed _from,
-    address indexed _to,
-    uint256 _value  
-  );
-
-  event Approval(
-    address indexed _owner,
-    address indexed _spender,
-    uint256 _value
-  );
-
-  mapping(address => uint256) public balanceOf;
-  mapping(address => mapping(address => uint256)) public allowance;
-
-  constructor() public {
-    owner = msg.sender;
-    balanceOf[msg.sender] = totalSupply;
+  /**
+     * @dev See {ERC20-_beforeTokenTransfer}. See {ERC20Capped-_beforeTokenTransfer}.
+     */
+    function _beforeTokenTransfer(address from, address to, uint256 amount) internal override(ERC20Capped, ERC20PresetMinterPauser) {
+      super._beforeTokenTransfer(from, to, amount);
+      if (from == address(0)) { // When minting tokens
+        require(totalSupply().add(amount) <= cap(), "ERC20Capped: cap exceeded");
+      }
+    }
+  
+  function isStakeholder(address _address) public view returns(bool, uint256) {
+    for (uint256 s = 0; s < stakeholders.length; s++){
+      if (_address == stakeholders[s]) return (true, s);
+    }
+    return (false, 0);
   }
 
-  function transfer(address _to, uint256 _value) public returns (bool success) {
-    require(balanceOf[msg.sender] >= _value);
-    balanceOf[msg.sender] -= _value;
-    balanceOf[_to] += _value;
-    emit Transfer(msg.sender, _to, _value);
-    return true;
+  function addStakeholder(address _stakeholder) public {
+    (bool _isStakeholder, ) = isStakeholder(_stakeholder);
+    if(!_isStakeholder) stakeholders.push(_stakeholder);
   }
 
-  function approve(address _spender, uint256 _value) public returns (bool success) {
-    allowance[msg.sender][_spender] = _value;
-    emit Approval(msg.sender, _spender, _value);
-    return true;
-  }
-
-  function transferFrom(address _from, address _to, uint256 _value) public returns (bool success) {
-    require(_value <= balanceOf[_from]);
-    require(_value <= allowance[_from][msg.sender]);
-    balanceOf[_from] -= _value;
-    balanceOf[_to] += _value;
-    allowance[_from][msg.sender] -= _value;
-    emit Transfer(_from, _to, _value);
-    return true;
-  }
-
-
-  function stake(uint _amount) public {
-    require(_amount > 0, "amount cannot be 0");
-
-    this.transferFrom(msg.sender, address(this), _amount);
-    staking[msg.sender] += _amount;
-    
-    if (!isStaking[msg.sender]) {
-      isStaking[msg.sender] = true;
-      hasStaked[msg.sender] = true;
-      stakers.push(msg.sender);
+  function removeStakeholder(address _stakeholder) public
+  {
+    (bool _isStakeholder, uint256 s) = isStakeholder(_stakeholder);
+    if(_isStakeholder){
+      stakeholders[s] = stakeholders[stakeholders.length - 1];
+      stakeholders.pop();
     }
   }
 
-  function unstake(uint _amount) public {
-
-    uint staked = staking[msg.sender];
-    require(0 < staked, "staking balance cannot be 0");
-    require(_amount <= staked, "amount unstaking cannot be more then staking");
-
-    this.transfer(msg.sender, _amount);
-    
-    if (_amount == staked) {
-      isStaking[msg.sender] = false;
-      staking[msg.sender] = 0;
-      return;
-    }
-
-    staking[msg.sender] -= _amount;
-
+  function stakeOf(address _stakeholder) public view returns(uint256){
+    return stakes[_stakeholder];
   }
 
+  function totalStakes() public view returns(uint256) {
+    uint256 _totalStakes = 0;
+    for (uint256 s = 0; s < stakeholders.length; s++){
+      _totalStakes = _totalStakes.add(stakes[stakeholders[s]]);
+    }
+    return _totalStakes;
+  }
 
-  function issue() public {
-    require(msg.sender == owner, "caller must be owner");
+  function createStake(uint256 _stake) public {
+    _burn(msg.sender, _stake);
+    if(stakes[msg.sender] == 0) addStakeholder(msg.sender);
+    stakes[msg.sender] = stakes[msg.sender].add(_stake);
+  }
 
-    for(uint i = 0; i < stakers.length; i++) {
-      address addr = stakers[i];
-      uint amount = staking[addr];
-      if (amount <= 0) continue;
-      this.transfer(addr, amount / 1000);
+  function removeStake(uint256 _stake) public {
+    stakes[msg.sender] = stakes[msg.sender].sub(_stake);
+    if(stakes[msg.sender] == 0) removeStakeholder(msg.sender);
+    _mint(msg.sender, _stake);
+  }
+
+  function rewardOf(address _stakeholder) public view returns(uint256) {
+    return rewards[_stakeholder];
+  }
+
+  function totalRewards() public view returns(uint256) {
+    uint256 _totalRewards = 0;
+    for (uint256 s = 0; s < stakeholders.length; s += 1){
+      _totalRewards = _totalRewards.add(rewards[stakeholders[s]]);
+    }
+    return _totalRewards;
+  }
+  
+  function calculateReward(address _stakeholder) public view returns(uint256) {
+    return stakes[_stakeholder] / 100;
+  }
+
+  function distributeRewards() public onlyOwner {
+    for (uint256 s = 0; s < stakeholders.length; s += 1){
+      address stakeholder = stakeholders[s];
+      uint256 reward = calculateReward(stakeholder);
+      rewards[stakeholder] = rewards[stakeholder].add(reward);
     }
   }
+
+  function withdrawReward() public {
+    uint256 reward = rewards[msg.sender];
+    rewards[msg.sender] = 0;
+    _mint(msg.sender, reward);
+  }
+
 }

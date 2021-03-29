@@ -3,10 +3,17 @@ import { Web3ReactProvider } from '@web3-react/core'
 import Web3 from 'web3';
 import LuxfiContract from './build/contracts/Luxfi.json';
 
+const ZERO_ADDRESS = '0x0';
+
 const App = props => {
 
   const [web3, setWeb3] = React.useState(null);
   const [accounts, setAccounts] = React.useState(null);
+  const [totalSupply, setTotalSupply] = React.useState(null);
+  const [gasPrice, setGasPrice] = React.useState(null);
+
+  const [targetAddress, setTargetAddress] = React.useState('');
+  const [targetInfo, setTargetInfo] = React.useState(null);
 
   React.useEffect(() => {
     (async () => {
@@ -30,31 +37,51 @@ const App = props => {
     return new web3.eth.Contract(LuxfiContract.abi, LuxfiContract.networks['5777'].address);
   }, [web3]);
 
+  console.log(luxfi?.methods);
+
   React.useEffect(() => {
-    if (!web3) return;
+    if (!web3 || !luxfi) return;
     (async () => {
-      const accounts = await web3.eth.getAccounts();
+      const accounts = [...(await web3.eth.getAccounts()), '0x6256b0B2a64b7DFedc3e5950a59274c87C92F537'];
       
       const balances = await Promise.all(accounts.map(web3.eth.getBalance));
+      const staking = await Promise.all(accounts.map(addr => luxfi.methods.staking(addr).call()));
+      const balanceOf = await Promise.all(accounts.map(addr => luxfi.methods.balanceOf(addr).call()));
 
-      setAccounts(accounts.map((address, i) => ({ address, balance: balances[i] })));
+      console.log(balances);
+
+      setAccounts(accounts.map((address, i) => ({ address, eth: balances[i], staking: staking[i], lxi: balanceOf[i] })));
     })();
+
+    (async () => {
+      const gasPrice = await web3.eth.getGasPrice();
+      setGasPrice(gasPrice);
+    })()
 
   }, [web3, luxfi]);
 
   const onStake = async () => {
     const [{ address: from }] = accounts;
-    const result = await luxfi.methods.stake('100').send({ from })
-      .on('transactionHash', function (hash) {
-        console.log(hash);
-      })
-      .on('receipt', function (receipt) {
-        console.log(receipt);
-      })
-      .on('confirmation', function (confirmationNumber, receipt) {
-        console.log(confirmationNumber, receipt);
-      })
-      .on('error', console.error);
+    await luxfi.methods.stake(web3.utils.toWei('100', 'ether')).send({ from });
+  }
+
+  const onIssue = async () => {
+    const [{ address: from }] = accounts;
+    const result = await luxfi.methods.issue().send({ from });
+    console.log(result);
+  }
+
+  const onSeed = async () => {
+    const [{ address: from }] = accounts;
+    const result = await luxfi.methods.seed(from, web3.utils.toWei('1000', 'ether')).send({ from });
+    console.log(result);
+  }
+
+  const onTargetGet = async () => {
+    const addr = targetAddress;
+    const staking = await luxfi.methods.staking(addr).call();
+    const balance = await luxfi.methods.balanceOf(addr).call();
+    setTargetInfo(`Balance: ${web3.utils.fromWei(balance, 'ether')}, Staking: ${staking}`);
   }
 
   if (!web3) return null;
@@ -62,11 +89,24 @@ const App = props => {
   return (
     <Web3ReactProvider getLibrary={web3}>
       <h3>Luxfi <small>#{LuxfiContract.networks['5777'].address}</small></h3>
-      <button onClick={onStake}>Stake!</button>
-      {(accounts || []).map(({ address, balance }) => (
-        <div key={address}>
+      <h3>Gas: {gasPrice && web3.utils.fromWei(gasPrice, 'gwei')} Gwei</h3>
+      <div>
+        <input value={targetAddress} onChange={e => setTargetAddress(e.target.value)} />
+        <button onClick={onTargetGet}>Get</button>
+        <p>{targetInfo}</p>
+      </div>
+
+      <div>
+        <button onClick={onStake}>Stake!</button>
+        <button onClick={onIssue}>Issue!</button>
+        <button onClick={onSeed}>Seed!</button>
+      </div>
+      {(accounts || []).map(({ address, eth, lxi, staking }) => (
+        <div key={address} style={{ display: 'flex', gap: 12}}>
           <h3>{address}</h3>
-          <h4>{balance}</h4>
+          <h4>{web3.utils.fromWei(eth, 'ether')} ETH</h4>
+          <h4>{web3.utils.fromWei(lxi, 'ether')} LXI</h4>
+          <h4>({web3.utils.fromWei(staking, 'ether')} LXI)</h4>
         </div>
       ))
       }
