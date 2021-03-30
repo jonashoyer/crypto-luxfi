@@ -2,6 +2,8 @@ import React from 'react';
 import { Web3ReactProvider } from '@web3-react/core'
 import Web3 from 'web3';
 import LuxfiContract from './build/contracts/Luxfi.json';
+import { Layout, Menu, Typography, InputNumber } from 'antd';
+import 'antd/dist/antd.css';
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
@@ -96,7 +98,35 @@ const App = props => {
 
   return (
     <Web3ReactProvider getLibrary={web3}>
-      <h3>Luxfi <small>{LuxfiContract.networks['5777'].address}</small></h3>
+      <Layout style={{ height: '100vh' }}>
+        <Layout.Sider>
+        <Typography.Title level={4} style={{ padding: '16px 0', margin: 0, textAlign: 'center', color: '#fff' }}>Luxfi</Typography.Title>
+        <Menu theme="dark" mode='inline'>
+          <Menu.Item> Option 1 </Menu.Item>
+          <Menu.Item> Option 2 </Menu.Item>
+        </Menu>
+        </Layout.Sider>
+        <Layout style={{ overflow: 'auto' }}>
+          <Layout.Content style={{ minHeight: '100vh' }}>
+          <InputNumber
+            style={{
+              width: 200,
+            }}
+            defaultValue="1"
+            min="0"
+            max="10"
+            step="0.00000000000001"
+            // onChange={onChange}
+            stringMode
+          />
+
+          </Layout.Content>
+          <Layout.Footer>
+            Luxfi © {new Date().getFullYear()} Created by The Luxed Foundation
+          </Layout.Footer>
+        </Layout>
+      </Layout>
+      {/* <h3>Luxfi <small>{LuxfiContract.networks['5777'].address}</small></h3>
       {contractStats &&
         <div>
           <p>totalRewards: {web3.utils.fromWei(contractStats.totalRewards, 'ether')} LXI</p>
@@ -120,7 +150,7 @@ const App = props => {
           <button onClick={() => onClaimReward(address)}>Claim Reward</button>
         </div>
       ))
-      }
+      } */}
 
     </Web3ReactProvider>
   )

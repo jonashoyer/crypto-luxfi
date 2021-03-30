@@ -29,14 +29,14 @@ contract Luxfi is ERC20PresetMinterPauser, ERC20Capped, Ownable {
   }
   
   /**
-     * @dev See {ERC20-_beforeTokenTransfer}. See {ERC20Capped-_beforeTokenTransfer}.
-     */
-    function _beforeTokenTransfer(address from, address to, uint256 amount) internal override(ERC20Capped, ERC20PresetMinterPauser) {
-      super._beforeTokenTransfer(from, to, amount);
-      if (from == address(0)) { // When minting tokens
-        require(totalSupply().add(amount) <= cap(), "ERC20Capped: cap exceeded");
-      }
+    * @dev See {ERC20-_beforeTokenTransfer}. See {ERC20Capped-_beforeTokenTransfer}.
+    */
+  function _beforeTokenTransfer(address from, address to, uint256 amount) internal override(ERC20Capped, ERC20PresetMinterPauser) {
+    super._beforeTokenTransfer(from, to, amount);
+    if (from == address(0)) { // When minting tokens
+      require(totalSupply().add(amount) <= cap(), "ERC20Capped: cap exceeded");
     }
+  }
   
   function isStakeholder(address _address) public view returns(bool, uint256) {
     for (uint256 s = 0; s < stakeholders.length; s++){
@@ -50,8 +50,7 @@ contract Luxfi is ERC20PresetMinterPauser, ERC20Capped, Ownable {
     if(!_isStakeholder) stakeholders.push(_stakeholder);
   }
 
-  function removeStakeholder(address _stakeholder) public
-  {
+  function removeStakeholder(address _stakeholder) public {
     (bool _isStakeholder, uint256 s) = isStakeholder(_stakeholder);
     if(_isStakeholder){
       stakeholders[s] = stakeholders[stakeholders.length - 1];
