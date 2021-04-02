@@ -5,6 +5,7 @@
   "author": "",
   "homepage": ".",
   "dependencies": {
+    "@ant-design/icons": "^4.6.2",
     "@openzeppelin/contracts": "^3.3.0",
     "@truffle/hdwallet-provider": "^1.2.5",
     "@usedapp/core": "^0.2.2",
